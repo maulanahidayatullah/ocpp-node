@@ -1,4 +1,4 @@
-# OCPP for electronic vehicle charging
+# OCPP for EV Charging
 
 OCPP Server & Client
 
