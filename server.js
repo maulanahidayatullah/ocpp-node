@@ -93,25 +93,6 @@ rpcServer.on('client', client => {
 
         return {};
     });
-
-    // 8️⃣ FirmwareStatusNotification (Charger mengirimkan status update firmware)
-    client.handle('FirmwareStatusNotification', ({ params }) => {
-        console.log("🖥️ Received FirmwareStatusNotification:", params);
-        return {};
-    });
-
-    // 9️⃣ DiagnosticsStatusNotification (Charger mengirimkan status diagnosa)
-    client.handle('DiagnosticsStatusNotification', ({ params }) => {
-        console.log("🔍 Received DiagnosticsStatusNotification:", params);
-        return {};
-    });
-
-    // 🔟 DataTransfer (Mengirim data tambahan ke server)
-    client.handle('DataTransfer', ({ params }) => {
-        console.log("📨 Received DataTransfer:", params);
-        return { status: "Accepted" };
-    });
-
 });
 
 app.post('/service/start', async (req, res) => {

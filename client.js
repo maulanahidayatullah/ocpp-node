@@ -35,8 +35,6 @@ const { RPCClient } = require('ocpp-rpc');
             await new Promise(resolve => setTimeout(resolve, 10000));
         }
     }
-
-    // Jalankan fungsi
     sendHeartbeat();
 
     // Kirim StartTransaction ke server
@@ -50,21 +48,21 @@ const { RPCClient } = require('ocpp-rpc');
 
     cli.handle('RemoteStartTransaction', async ({ params }) => {
         console.log("⚡ Received RemoteStopTransaction:", params);
-        const stopTransactionResponse = await cli.call('StopTransaction', {
+        const startTransactionResponse = await cli.call('StopTransaction', {
             transactionId: startTransactionResponse.transactionId,
             meterStop: 1200,
             timestamp: new Date().toISOString()
         });
 
-        console.log("StopTransaction Response:", stopTransactionResponse);
+        console.log("StartTransaction Response:", startTransactionResponse);
 
-        return stopTransactionResponse;
+        return startTransactionResponse;
     });
 
     cli.handle('RemoteStopTransaction', async ({ params }) => {
         console.log("⚡ Received RemoteStopTransaction:", params);
         const stopTransactionResponse = await cli.call('StopTransaction', {
-            transactionId: startTransactionResponse.transactionId,
+            transactionId: stopTransactionResponse.transactionId,
             meterStop: 1200,
             timestamp: new Date().toISOString()
         });
