@@ -3,11 +3,16 @@ const { DateTime } = require('luxon');
 const express = require('express');
 const util = require('./common/util');
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' }); // Simpan sementara di folder uploads
+const upload = multer({ dest: 'uploads/' });
+
+const connectDB = require("./mongo/config/mongoconfig");
+const Test = require("./mongo/models/test");
+connectDB();
 
 const app = express();
-const httpServer = app.listen(3000, '10.231.15.1', () => {
-    console.log("🚀 OCPP Server running on ws://10.231.15.1:3000");
+app.use(express.json());
+const httpServer = app.listen(3000, 'localhost', () => {
+    console.log("🚀 OCPP Server running on ws://localhost:3000");
 });
 
 const rpcServer = new RPCServer();
@@ -65,12 +70,12 @@ rpcServer.on('client', client => {
     });
 
     // 5️⃣ StartTransaction (Memulai proses charging)
-    client.handle('StartTransaction', ({ params }) => {
-        console.log("⚡ Received StartTransaction:", params);
+    // client.handle('StartTransaction', ({ params }) => {
+    //     console.log("⚡ Received StartTransaction:", params);
 
-        console.log(`🚀 Transaction ${transactionId} started`);
-        return { transactionId: transactionId, idTagInfo: { status: "Accepted" } };
-    });
+    //     console.log(`🚀 Transaction ${transactionId} started`);
+    //     return { transactionId: transactionId, idTagInfo: { status: "Accepted" } };
+    // });
 
     // 6️⃣ StopTransaction (Mengakhiri proses charging)
 
@@ -95,139 +100,155 @@ rpcServer.on('client', client => {
     });
 });
 
-app.post('/service/start', async (req, res) => {
-    try {
-        const dateTimeNow = DateTime.now().setZone('utc').toISO({ suppressMilliseconds: true });
-        req.body.timestamp = dateTimeNow;
+app.locals.rpcServer = rpcServer;
 
-        let client = Array.from(rpcServer._clients);
-        client = client.find(client => client._identity === req.body.chargerId);
+const indexRouter = require('./express/routes/indexRoutes');
+app.use('/api', indexRouter);
 
-        if (!client) {
-            return res.status(404).json({ error: "Charger not found or offline" });
-        }
+// app.post('/service/start', async (req, res) => {
+//     try {
+//         const dateTimeNow = DateTime.now().setZone('utc').toISO({ suppressMilliseconds: true });
+//         req.body.timestamp = dateTimeNow;
 
-        transactionId = util.generateTransactionId();
+//         let client = Array.from(rpcServer._clients);
+//         client = client.find(client => client._identity === req.body.chargerId);
 
-        const response = await client.call('RemoteStartTransaction', req.body);
-        return res.json({
-            status_code: 200,
-            message: "Service Started",
-            transactionId: transactionId,
-            response: response
-        });
-    } catch (error) {
-        console.error("❌ Error Start Transaction:", error);
-        return res.status(500).json({
-            status_code: 500,
-            message: "Failed to send StatusNotification",
-            error: error.message
-        });
-    }
-})
+//         if (!client) {
+//             return res.status(404).json({ error: "Charger not found or offline" });
+//         }
 
-app.post('/service/stop', async (req, res) => {
-    try {
-        const dateTimeNow = DateTime.now().setZone('utc').toISO({ suppressMilliseconds: true });
-        req.body.timestamp = dateTimeNow;
+//         transactionId = util.generateTransactionId();
 
-        let client = Array.from(rpcServer._clients);
-        client = client.find(client => client._identity === req.body.chargerId);
+//         const response = await client.call('RemoteStartTransaction', req.body);
+//         return res.json({
+//             status_code: 200,
+//             message: "Service Started",
+//             transactionId: transactionId,
+//             response: response
+//         });
+//     } catch (error) {
+//         console.error("❌ Error Start Transaction:", error);
+//         return res.status(500).json({
+//             status_code: 500,
+//             message: "Failed to send StatusNotification",
+//             error: error.message
+//         });
+//     }
+// })
+// app.post('/service/stop', async (req, res) => {
+//     try {
+//         const dateTimeNow = DateTime.now().setZone('utc').toISO({ suppressMilliseconds: true });
+//         req.body.timestamp = dateTimeNow;
 
-        if (!client) {
-            return res.status(404).json({ error: "Charger not found or offline" });
-        }
+//         let client = Array.from(rpcServer._clients);
+//         client = client.find(client => client._identity === req.body.chargerId);
 
-        const response = await client.call('RemoteStopTransaction', req.body);
-        return res.json({
-            status_code: 200,
-            message: "Service Stoped",
-            response: response
-        })
-    } catch (error) {
-        console.error("❌ Error Stop Transaction:", error);
-        return res.status(500).json({
-            status_code: 500,
-            message: "Failed to send ",
-            error: error.message
-        });
-    }
-})
+//         if (!client) {
+//             return res.status(404).json({ error: "Charger not found or offline" });
+//         }
 
-app.get('/service/configuration', async (req, res) => {
-    try {
-        const { chargerId } = req.body;
+//         const response = await client.call('RemoteStopTransaction', req.body);
+//         return res.json({
+//             status_code: 200,
+//             message: "Service Stoped",
+//             response: response
+//         })
+//     } catch (error) {
+//         console.error("❌ Error Stop Transaction:", error);
+//         return res.status(500).json({
+//             status_code: 500,
+//             message: "Failed to send ",
+//             error: error.message
+//         });
+//     }
+// })
+// app.get('/service/configuration', async (req, res) => {
+//     try {
+//         const { chargerId } = req.body;
 
-        // Cari client berdasarkan chargerId
-        let client = Array.from(rpcServer._clients)
-            .find(client => client._identity === chargerId);
+//         // Cari client berdasarkan chargerId
+//         let client = Array.from(rpcServer._clients)
+//             .find(client => client._identity === chargerId);
 
-        if (!client) {
-            return res.status(404).json({ error: "Charger not found or offline" });
-        }
+//         if (!client) {
+//             return res.status(404).json({ error: "Charger not found or offline" });
+//         }
 
-        // Kirim perintah Soft Reset ke charger
-        const response = await client.call('GetConfiguration', {});
+//         // Kirim perintah Soft Reset ke charger
+//         const response = await client.call('GetConfiguration', {});
 
-        return res.json({
-            status_code: 200,
-            message: "Get Configuration",
-            response: response
-        });
-    } catch (error) {
-        console.error("❌ Error Reset Charger:", error);
-        return res.status(500).json({
-            status_code: 500,
-            message: "Failed to send Reset command",
-            error: error.message
-        });
-    }
-});
+//         return res.json({
+//             status_code: 200,
+//             message: "Get Configuration",
+//             response: response
+//         });
+//     } catch (error) {
+//         console.error("❌ Error Reset Charger:", error);
+//         return res.status(500).json({
+//             status_code: 500,
+//             message: "Failed to send Reset command",
+//             error: error.message
+//         });
+//     }
+// });
+// app.post('/service/upload-firmware', upload.single('firmware'), async (req, res) => {
+//     try {
+//         if (!req.file) {
+//             return res.status(400).json({ error: "Firmware file is required" });
+//         }
 
-app.post('/service/upload-firmware', upload.single('firmware'), async (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ error: "Firmware file is required" });
-        }
+//         const { chargerId, retryInterval = 5 } = req.body;
+//         let client = Array.from(rpcServer._clients)
+//             .find(client => client._identity === chargerId);
 
-        const { chargerId, retryInterval = 5 } = req.body;
-        let client = Array.from(rpcServer._clients)
-            .find(client => client._identity === chargerId);
+//         if (!client) {
+//             return res.status(404).json({ error: "Charger not found or offline" });
+//         }
 
-        if (!client) {
-            return res.status(404).json({ error: "Charger not found or offline" });
-        }
+//         // const firmwarePath = `http://your-server.com/uploads/${req.file.filename}`; // Simpan di tempat yang bisa diakses
 
-        // const firmwarePath = `http://your-server.com/uploads/${req.file.filename}`; // Simpan di tempat yang bisa diakses
+//         // Kirim perintah update firmware ke charger
+//         // const response = await client.call('UpdateFirmware', {
+//         //     location: firmwarePath,
+//         //     retrieveDate: new Date().toISOString(),
+//         //     retryInterval
+//         // });
 
-        // Kirim perintah update firmware ke charger
-        // const response = await client.call('UpdateFirmware', {
-        //     location: firmwarePath,
-        //     retrieveDate: new Date().toISOString(),
-        //     retryInterval
-        // });
+//         return res.json({
+//             status_code: 200,
+//             message: "Firmware update initiated",
+//             // response: response
+//         });
 
-        return res.json({
-            status_code: 200,
-            message: "Firmware update initiated",
-            // response: response
-        });
+//     } catch (error) {
+//         console.error("❌ Error updating firmware:", error);
+//         return res.status(500).json({
+//             status_code: 500,
+//             message: "Failed to upload firmware",
+//             error: error.message
+//         });
+//     }
+// });
+// app.get('/service/chargers', (req, res) => {
+//     return res.json(Array.from(chargers.entries()).map(([chargerId, data]) => ({
+//         chargerId,
+//         status: data.status,
+//         lastHeartbeat: data.lastHeartbeat,
+//     })));
+// });
+// app.get("/test", async (req, res) => {
+//     try {
 
-    } catch (error) {
-        console.error("❌ Error updating firmware:", error);
-        return res.status(500).json({
-            status_code: 500,
-            message: "Failed to upload firmware",
-            error: error.message
-        });
-    }
-});
+//         const test = await Test.find();
 
 
-app.get('/service/chargers', (req, res) => {
-    return res.json(Array.from(chargers.entries()).map(([chargerId, data]) => ({
-        chargerId,
-        status: data.status,
-        lastHeartbeat: data.lastHeartbeat,
-    })));
-});
+//         return res.json({
+//             status_code: 200,
+//             message: "Success Retrieve test Data",
+//             rows: test
+//         })
+//     } catch (err) {
+//         res.status(500).json({ error: err.message });
+//     }
+// });
+

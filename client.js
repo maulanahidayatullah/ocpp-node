@@ -1,8 +1,9 @@
 const { RPCClient } = require('ocpp-rpc');
+const util = require('./common/util');
 
 (async () => {
     const cli = new RPCClient({
-        endpoint: 'ws://10.231.15.1:3000',
+        endpoint: 'ws://localhost:3000',
         identity: 'mikucharger'
     });
 
@@ -47,28 +48,53 @@ const { RPCClient } = require('ocpp-rpc');
     // console.log("StartTransaction Response:", startTransactionResponse);
 
     cli.handle('RemoteStartTransaction', async ({ params }) => {
-        console.log("⚡ Received RemoteStopTransaction:", params);
-        const startTransactionResponse = await cli.call('StopTransaction', {
-            transactionId: startTransactionResponse.transactionId,
-            meterStop: 1200,
-            timestamp: new Date().toISOString()
-        });
+        console.log("⚡ Received RemoteStartTransaction:", params);
 
-        console.log("StartTransaction Response:", startTransactionResponse);
+        const transactionId = util.generateTransactionId();
+        try {
+            await cli.call('StartTransaction', {
+                transactionId: transactionId,
+                idTag: params.idTag,
+                meterStart: 0,
+                timestamp: new Date().toISOString()
+            });
 
-        return startTransactionResponse;
+            return {
+                status: "Accepted"
+            };
+        } catch (error) {
+            console.error("❌ Error processing RemoteStartTransaction:", error);
+            return { status: "Error", message: error.message };
+        }
     });
 
     cli.handle('RemoteStopTransaction', async ({ params }) => {
         console.log("⚡ Received RemoteStopTransaction:", params);
-        const stopTransactionResponse = await cli.call('StopTransaction', {
-            transactionId: stopTransactionResponse.transactionId,
-            meterStop: 1200,
-            timestamp: new Date().toISOString()
-        });
 
-        console.log("StopTransaction Response:", stopTransactionResponse);
+        try {
+            if (!params.transactionId) {
+                console.log("❌ Missing transactionId");
+                return { status: "Rejected", message: "Transaction ID is required" };
+            }
 
-        return stopTransactionResponse;
+            const stopTransactionResponse = await cli.call('StopTransaction', {
+                transactionId: params.transactionId,
+                meterStop: params.meterStop || 1200,
+                timestamp: new Date().toISOString()
+            });
+
+            console.log("✅ StopTransaction Response:", stopTransactionResponse);
+
+            if (!stopTransactionResponse || stopTransactionResponse.idTagInfo.status !== "Accepted") {
+                console.log("❌ StopTransaction rejected by charger.");
+                return { status: "Rejected" };
+            }
+
+            return { status: "Accepted" };
+        } catch (error) {
+            console.error("❌ Error processing RemoteStopTransaction:", error);
+            return { status: "Error", message: error.message };
+        }
     });
+
 })();
