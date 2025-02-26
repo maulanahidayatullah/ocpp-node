@@ -6,7 +6,12 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
 const connectDB = require("./mongo/config/mongoconfig");
-const Test = require("./mongo/models/test");
+const TestData = require("./mongo/models/Test");
+const ChargerPointModel = require("./mongo/models/ChargerPoint");
+const HeartBeatModel = require("./mongo/models/HeartBeat");
+const MeterTransactionModel = require("./mongo/models/MeterTransaction");
+const StatusChargerModel = require("./mongo/models/StatusCharger");
+
 connectDB();
 
 const app = express();
@@ -22,8 +27,6 @@ const chargers = new Map();
 
 app.use(express.json());
 
-let transactionId = 0;
-
 rpcServer.on('client', client => {
 
     if (!client.identity) {
@@ -36,8 +39,19 @@ rpcServer.on('client', client => {
     }
 
     // 1️⃣ BootNotification (Ketika charger pertama kali terhubung)
-    client.handle('BootNotification', ({ params }) => {
+    client.handle('BootNotification', async ({ params }) => {
         console.log("⚡ Received BootNotification:", params);
+
+        try {
+            await ChargerPointModel.create({
+                chargerPointModel: params.chargePointModel,
+                chargerPointVendor: params.chargePointVendor,
+                chargerId: client.identity,
+            });
+            console.log("✅ ChargerPoint saved to MongoDB");
+        } catch (error) {
+            console.error("❌ Error saving ChargerPoint:", error);
+        }
         return {
             currentTime: new Date().toISOString(),
             interval: 10,
@@ -46,12 +60,16 @@ rpcServer.on('client', client => {
     });
 
     // 2️⃣ Heartbeat (Charger mengirimkan waktu saat ini secara berkala)
-    client.handle('Heartbeat', () => {
+    client.handle('Heartbeat', async () => {
         console.log(`💓 Heartbeat from ${client.identity}`);
 
-        // Update last heartbeat agar tahu charger masih aktif
-        if (chargers.has(client.identity)) {
-            chargers.get(client.identity).lastHeartbeat = new Date();
+        try {
+            await HeartBeatModel.create({
+                chargerId: client.identity,
+            });
+            console.log("✅ Heartbeat saved to MongoDB");
+        } catch (error) {
+            console.error("❌ Error saving Heartbeat:", error);
         }
 
         return { currentTime: new Date().toISOString() };
@@ -64,8 +82,20 @@ rpcServer.on('client', client => {
     });
 
     // 4️⃣ StatusNotification (Charger mengirimkan status connector)
-    client.handle('StatusNotification', ({ params }) => {
+    client.handle('StatusNotification', async ({ params }) => {
         console.log("📡 Received StatusNotification:", params);
+        console.log(`📡 StatusNotification from ${client.identity}`);
+
+        try {
+            await StatusChargerModel.create({
+                chargerId: client.identity,
+                errorCode: params.errorCode,
+                status: params.status,
+            });
+            console.log("✅ StatusCharger saved to MongoDB");
+        } catch (error) {
+            console.error("❌ Error saving StatusCharger:", error);
+        }
         return {};
     });
 
@@ -85,8 +115,23 @@ rpcServer.on('client', client => {
     });
 
     // 7️⃣ MeterValues (Charger mengirimkan data meteran listrik)
-    client.handle('MeterValues', ({ params }) => {
+    client.handle('MeterValues', async ({ params }) => {
         // console.log("🔢 Received MeterValues:", JSON.stringify(params, null, 2));
+
+        try {
+            await MeterTransactionModel.create({
+                transactionId: params.transactionId,
+                chargerId: client.identity,
+                connectorId: params.connectorId,
+                voltValue: params.meterValue[0].sampledValue[0].value,
+                ampereValue: params.meterValue[0].sampledValue[1].value,
+                kwValue: params.meterValue[0].sampledValue[2].value,
+                whValue: params.meterValue[0].sampledValue[3].value,
+            });
+            console.log("✅ MeterTransaction saved to MongoDB");
+        } catch (error) {
+            console.error("❌ Error saving MeterTransaction:", error);
+        }
         params.meterValue.forEach(meter => {
             meter.sampledValue.forEach(sample => {
                 if (sample.unit === "Wh") {
@@ -239,13 +284,20 @@ app.use('/api', indexRouter);
 // app.get("/test", async (req, res) => {
 //     try {
 
-//         const test = await Test.find();
-
+//         const testData = await TestData.find();
+//         const ChargerPointData = await ChargerPointModel.find();
+//         const HeartBeatData = await HeartBeatModel.find();
+//         const MeterTransactionData = await MeterTransactionModel.find();
+//         const StatusChargerModelData = await StatusChargerModel.find();
 
 //         return res.json({
 //             status_code: 200,
 //             message: "Success Retrieve test Data",
-//             rows: test
+//             testData: testData,
+//             ChargerPointData: ChargerPointData,
+//             HeartBeatData: HeartBeatData,
+//             MeterTransactionData: MeterTransactionData,
+//             StatusChargerModelData: StatusChargerModelData
 //         })
 //     } catch (err) {
 //         res.status(500).json({ error: err.message });
